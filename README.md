@@ -1,9 +1,22 @@
 # amidaKuji
-### Create Amida Kuji in R
+### Create Amida Kuji in R　（Rであみだくじを作ろう！）
 
 #### Author: Kosuke Hamzaki (hamazaki@ut-biomet.org)
 #### Date: 2019/10/08
 
+
+### インストール
+以下のコードを実行してください。
+
+``` r
+# install.packages("devtools")   ### もしインストールされてなければ実行してください
+devtools::install_github("KosukeHamazaki/amidaKuji")
+```
+パッケージなど使っていないので、特に問題なく入るはずです。
+
+
+
+### 使い方
 このパッケージはあみだくじを作るためのRパッケージです。
 縦の線の数（`nVerticalLines`引数）、横の線の数（`nHorizontalLines`引数）ともに自由に設定できます。
 横の線同士が交わらないようにするか（`noCross`引数）なども設定できます。
