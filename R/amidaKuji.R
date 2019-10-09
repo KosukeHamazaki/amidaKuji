@@ -13,6 +13,7 @@
 #' @param plotKuji If TRUE, plot Amida Kuji in this function.
 #' @param noCross If TRUE, there will be no cross in AMida Kuji. The default is FALSE
 #' @param playerNames The names of players. The length of this argument should be equal to `nVerticalLines`.
+#' @param minBetweenVerticalLength The minimum length between horizontal lines.
 #'
 #' @return
 #' Nothing, but create information about Amida Kuji as global objects.
@@ -20,32 +21,92 @@
 amidaKujiCreate <- function (nVerticalLines = 12, nHorizontalLines = 30,
                              nMinBetweenLines = 2, lenVertical = 10,
                              goalIDs = paste0("G", 1:nVerticalLines), plotKuji = TRUE,
-                             noCross = FALSE, playerNames = paste0("P", 1:nVerticalLines)) {
+                             noCross = FALSE, playerNames = paste0("P", 1:nVerticalLines),
+                             minBetweenVerticalLength = 0.05 * lenVertical) {
   nBetween <- nVerticalLines - 1
-  nBetweenLinesMinNow <- 0
-  while (nBetweenLinesMinNow < nMinBetweenLines){
-    horizontalPos <- rep(list(NA), nHorizontalLines)
-    for (i in 1:nHorizontalLines) {
-      horizontalStartNow <- sample(1:nBetween, 1)
-      if (noCross){
-        horizontalPosNow <- rep(lenVertical - runif(n = 1, min = 1, max = lenVertical), 2)
+
+  horizontalPos <- rep(list(matrix(NA, nrow = 2, ncol = 2)), nHorizontalLines)
+  horizontalStart <- sample(c(rep(1:nBetween, each = nMinBetweenLines),
+                              sample(1:nBetween, nHorizontalLines - nBetween * nMinBetweenLines, replace = TRUE)))
+
+  for (i in 1:nHorizontalLines) {
+    horizontalStartNow <- horizontalStart[i]
+
+    horizontalPosPastRight <- unlist(lapply(horizontalPos, function(x) {
+      x[x[, 1] %in% horizontalStartNow, 2]
+    }))
+    horizontalPosPastLeft <- unlist(lapply(horizontalPos, function(x) {
+      x[x[, 1] %in% (horizontalStartNow + 1), 2]
+    }))
+
+    if (length(horizontalPosPastRight) >= 1) {
+      horizontalPosProhibitRight <- t(sapply(X = horizontalPosPastRight, function(x) {
+        c(x - minBetweenVerticalLength / 2, x + minBetweenVerticalLength / 2)
+      }
+      ))
+    } else {
+      horizontalPosProhibitRight <- NULL
+    }
+
+    if (length(horizontalPosPastLeft) >= 1) {
+      horizontalPosProhibitLeft <- t(sapply(X = horizontalPosPastLeft, function(x) {
+        c(x - minBetweenVerticalLength / 2, x + minBetweenVerticalLength / 2)
+      }
+      ))
+    } else {
+      horizontalPosProhibitLeft <- NULL
+    }
+
+
+    horizontalPosOKRightNow <- horizontalPosOKLeftNow <- FALSE
+
+    while (!horizontalPosOKRightNow) {
+      horizontalPosRightCandNow <- lenVertical - runif(n = 1, min = 1, max = lenVertical - 0.5)
+
+      if (noCross) {
+        if ((length(horizontalPosPastRight) >= 1) | (length(horizontalPosPastLeft) >= 1)) {
+          horizontalPosOKRightNow <- all(apply(X = rbind(horizontalPosProhibitRight, horizontalPosProhibitLeft), 1, function(x) {
+            prod(x - horizontalPosRightCandNow) > 0
+          }))
+        } else {
+          horizontalPosOKRightNow <- TRUE
+        }
       } else {
-        horizontalPosNow <- lenVertical - runif(n = 2, min = 1, max = lenVertical)
+        if (length(horizontalPosPastRight) >= 1) {
+          horizontalPosOKRightNow <- all(apply(X = horizontalPosProhibitRight, 1, function(x) {
+            prod(x - horizontalPosRightCandNow) > 0
+          }))
+        } else {
+          horizontalPosOKRightNow <- TRUE
+        }
+      }
+    }
+
+
+    while (!horizontalPosOKLeftNow) {
+      if (noCross){
+        horizontalPosLeftCandNow <- horizontalPosRightCandNow
+      } else {
+        horizontalPosLeftCandNow <- lenVertical - runif(n = 1, min = 1, max = lenVertical - 0.5)
       }
 
-      horizontalPosRightNow <- c(horizontalStartNow, horizontalPosNow[1])
-      horizontalPosLeftNow <- c(horizontalStartNow + 1, horizontalPosNow[2])
-
-      horizontalPos[[i]] <- rbind(horizontalPosRightNow, horizontalPosLeftNow)
+      if (length(horizontalPosPastLeft) >= 1) {
+        horizontalPosOKLeftNow <- all(apply(X = horizontalPosProhibitLeft, 1, function(x) {
+          prod(x - horizontalPosLeftCandNow) > 0
+        }))
+      } else {
+        horizontalPosOKLeftNow <- TRUE
+      }
     }
 
-    nBetweenLinesNow <- table(unlist(lapply(horizontalPos, function(x) x[1, 1])))
-    if(length(nBetweenLinesNow) < nBetween) {
-      nBetweenLinesMinNow <- 0
-    } else {
-      nBetweenLinesMinNow <- min(nBetweenLinesNow)
-    }
+
+    horizontalPosRightNow <- c(horizontalStartNow, horizontalPosRightCandNow)
+    horizontalPosLeftNow <- c(horizontalStartNow + 1, horizontalPosLeftCandNow)
+
+    horizontalPos[[i]] <- rbind(horizontalPosRightNow, horizontalPosLeftNow)
   }
+
+
 
   nVerticalLines <<- nVerticalLines
   nHorizontalLines <<- nHorizontalLines
@@ -146,6 +207,8 @@ amidaKuji <- function(playerNo, returnHistory = FALSE){
 #' @param playerNo No. of the player of interest. This argument should be integer.
 #'  If NULL, Only the base of Amida Kuji will be shown.
 #' @param col Color of the history of the path of the player of interest.
+#' @param lwdPath Line width for the history of the path of the player of interest.
+#'
 #'
 #' @return
 #' Plot of Amida Kuji with some information.
@@ -158,11 +221,11 @@ amidaKuji <- function(playerNo, returnHistory = FALSE){
 #' ### Plot the results of Amida Kuji
 #' amidaKujiPlot(playerNo = 4, col = 2)
 #'
-amidaKujiPlot <- function(playerNo = NULL, col = 2){
+amidaKujiPlot <- function(playerNo = NULL, col = 2, lwdPath = 2.5){
   plot(x = 1:nVerticalLines, y = 1:nVerticalLines, ylim = c(-2, lenVertical + 2),
        type = "n", axes = FALSE, xlab = "", ylab = "")
   segments(x0 = 1:nVerticalLines, y0 = rep(0, nVerticalLines),
-           x1 = 1:nVerticalLines, y1 = rep(lenVertical), lwd = 1.8)
+           x1 = 1:nVerticalLines, y1 = rep(lenVertical), lwd = 1.5)
   segments(x0 = unlist(lapply(horizontalPos, function(x) x[1, 1])),
            y0 = unlist(lapply(horizontalPos, function(x) x[1, 2])),
            x1 = unlist(lapply(horizontalPos, function(x) x[2, 1])),
@@ -180,7 +243,7 @@ amidaKujiPlot <- function(playerNo = NULL, col = 2){
                y0 = playerHistory[stepNow, 2],
                x1 = playerHistory[stepNow + 1, 1],
                y1 = playerHistory[stepNow + 1, 2],
-               lwd = 1.4, col = col)
+               lwd = lwdPath, col = col)
     }
 
     text(x = playerNo, y = lenVertical + 1,
